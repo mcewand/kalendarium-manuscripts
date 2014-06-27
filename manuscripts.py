@@ -4,18 +4,53 @@
 import os, re, json
 
 from flask import Flask
-from flask import jsonify, request
+from flask import jsonify, request, render_template
+from pymongo import Connection
+
+MONGO_URL = os.environ.get('MONGOHQ_URL')
+
+if MONGO_URL:
+  # Get a connection
+  connection = Connection(MONGO_URL)
+  # Get the database
+  db = connection[urlparse(MONGO_URL).path[1:]]
+else:
+  # Not on an app with the MongoHQ add-on, do some localhost action
+  connection = Connection('localhost', 27017)
+  db = connection['KalendariumManuscripts']
+
+
 
 app = Flask(__name__)
-@app.route("/", methods=['GET','POST'])
+
+class Manuscript(object):
+    def __init__(self, name, id):
+        self.name = name
+        self.id = id
+        return
+
+    def to_dict(self):
+        D = {}
+        D["name"] = self.name
+        D["id"] = self.id
+        return D
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.route("/")
 def index():
-    if request.method=="GET":
-        return 'Kalendarium-manuscript'
-    if request.method=="POST":
-        return 'POST'
+    myObj = db.analytics.find_one({'event':'page_views'})
+    if not myObj:
+        myObj = {'event':'page_views', 'count':1}
+    else:
+        myObj['count'] += 1
+    db.analytics.save(myObj)
+    return 'Kalendarium-manuscripts ' + str(myObj['count'])
 
 @app.route('/item/', defaults={'m_id': None})
-@app.route('/item/<int:m_id>')
+@app.route('/item/<int:m_id>', methods=['GET','POST'])
 def itemLookup(m_id):
     #Look up to see if item exists & return
     #Edit item if sent as POST 'edit'
