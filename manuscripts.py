@@ -1,7 +1,7 @@
 #!usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os, re, json, pymongo, datetime
+import os, re, json, pymongo, datetime, random, string
 from urlparse import urlparse
 from flask import Flask
 from flask import jsonify, request, render_template
@@ -18,11 +18,14 @@ MONGO_URL = os.environ.get('MONGOHQ_URL')
 if MONGO_URL:
     connection = MongoClient(MONGO_URL)
     db = connection[urlparse(MONGO_URL).path[1:]]
+    db.manuscripts.create_index("mid", unique=True)
+
 else:
     # Not on an app with the MongoHQ add-on, do some localhost action
     connection = MongoClient()
     #connection = MongoClient('mongodb://localhost:27017/')
     db = connection['KalendariumManuscripts']
+    db.manuscripts.create_index("mid", unique=True)
 
 app = Flask(__name__)
 
@@ -241,14 +244,26 @@ def itemLookup(m_id):
     except Exception,e:
         print str(e)
 
-# Add a new item
-@app.route('/api/manuscript/add', methods=['POST'])
+# Generate an ID for a new item
+@app.route('/api/manuscript/add')
 @cross_origin(headers=['Content-Type'])
 def itemAdd():
-    manuscript = request.get_json(force=True)
-    db_id = db.manuscripts.insert(manuscript)  # Only returns new id, wrap in try
-    return json.dumps(manuscript, default=json_util.default)
-    #return '[{"added":"' + db_id + '"}]'
+    # Generate a test ID
+    def genkey(length = 5, chars = string.ascii_lowercase + string.digits):
+        new_mid = ''.join(random.choice(chars) for _ in xrange(length))
+        manuscript = {"mid": new_mid}
+        # Check for a duplicate key error, rather than looking up all IDs
+        try:
+            db_id = db.manuscripts.insert(manuscript)  # Only returns new id, wrap in try
+
+        except:  #@todo specify exception, pymongo is supposed to support DuplicateKeyError, but it seems to crap out
+            # recursive, create a new id
+            genkey()
+
+        return new_mid
+
+    m_id = genkey()
+    return json.dumps({"m_id":m_id}, default=json_util.default)
 
 # Create or update items
 @app.route('/api/manuscript/<m_id>/edit', methods=['POST'])
