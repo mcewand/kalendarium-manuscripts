@@ -68,7 +68,8 @@ dictFields = {
     'cal_col_2':None,
     'cal_col_3':None,
     'cal_col_4':None,
-    'cal_col_5':None
+    'cal_col_5':None,
+    'sc_cal_manifest_id':None
 }
 
 
