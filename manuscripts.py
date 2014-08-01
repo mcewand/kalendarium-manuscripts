@@ -71,9 +71,6 @@ dictFields = {
     'cal_col_5':None
 }
 
-
-
-
 app = Flask(__name__)
 
 class Manuscript(object):
@@ -100,15 +97,14 @@ class Manuscript(object):
 
         return D
 
-@app.errorhandler(404)
-#@cross_origin()
-def page_not_found(e):
-    return render_template('404.html'), 404 #@todo need to add
+#@app.errorhandler(404)
+#def page_not_found(e):
+#    return render_template('404.html'), 404 #@todo need to add
 
 @app.route("/")
 def index():
     if (db):
-        records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1})
+        records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
         manuscripts = []
         for manuscript in records:
             manuscripts.append(manuscript)
@@ -120,19 +116,45 @@ def index():
 # do we expect to have a use for batch selection of manuscripts?
 
 # Find an item
-@app.route('/api/manuscript/', defaults={'m_id': None})
-@app.route('/api/manuscript/<m_id>') #, methods=['GET','POST'])
+@app.route('/api/manuscript/', defaults={'m_id': None}, methods=['GET','POST'])
+@app.route('/api/manuscript/<m_id>', methods=['GET','POST'])
 @cross_origin()
 def itemLookup(m_id):
     try:
         manuscript_dict = []
 
-        # basic calls don't return any records if m_id is omitted, but in
-        # some cases we might want to return all results
-        if m_id == 0:
-            records = db.manuscripts.find({}, {"_id":0})
-        else:
+        # If there is a manuscript id, get that record explicitly
+        if (m_id):
             records = db.manuscripts.find({"mid":m_id}, {"_id":0})
+
+        # If no ID, check name and shelfmark
+        else:
+            try:
+                if request:  # @todo find out how to see if there is a post request or not
+                    postData = request.get_json(force=True)
+                    # @todo change this to a better query, since these require exact matches
+                    if (postData['name']):
+                        records = db.manuscripts.find({"name":postData['name']}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
+                    elif (postData['shelfmark']):
+                        records = db.manuscripts.find({"shelfmark":postData['shelfmark']}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
+            except:
+                # return all
+                records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
+
+            manuscripts = []
+            # If there is only one record, resubmit using the ID
+            if (records.count() == 1):
+                for manuscript in records:
+                    manuscripts.append(manuscript)
+
+                return itemLookup(manuscripts[0]['mid']);
+
+            # If there are multiple matching records, return a disambiguation list
+            else:
+                for manuscript in records:
+                    manuscripts.append(manuscript)
+
+                return json.dumps(manuscripts, indent=4, sort_keys=False, default=json_util.default)
 
         # make sure we have a record
         num = records.count()
