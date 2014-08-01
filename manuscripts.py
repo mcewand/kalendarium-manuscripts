@@ -19,6 +19,8 @@ if MONGO_URL:
     connection = MongoClient(MONGO_URL)
     db = connection[urlparse(MONGO_URL).path[1:]]
     db.manuscripts.create_index("mid", unique=True)
+    db.manuscripts.create_index("idx_name", unique=False)
+    db.manuscripts.create_index("idx_shelfmark", unique=False)
 
 else:
     # Not on an app with the MongoHQ add-on, do some localhost action
@@ -29,7 +31,9 @@ else:
 
 dictFields = {
     'name':None,
+    'idx_name':None,
     'shelfmark':None,
+    'idx_shelfmark':None,
     'mtype':None,
     'ms_or_print':None,
     'language':None,
@@ -91,7 +95,10 @@ class Manuscript(object):
 
         for k,v in dictFields.items():
             try:
-                D[k]=v
+                # JSON-LD excludes null or empty values
+                if v:
+                    D[k]=v
+
             except AttributeError:
                 pass
 
@@ -132,11 +139,14 @@ def itemLookup(m_id):
             try:
                 if request:  # @todo find out how to see if there is a post request or not
                     postData = request.get_json(force=True)
-                    # @todo change this to a better query, since these require exact matches
+                    # the lookup uses a forced lowercase index
                     if (postData['name']):
-                        records = db.manuscripts.find({"name":postData['name']}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
+                        #@todo - uses the lower case index, but still must be an exact match
+                        lower_name = postData['name'].lower()
+                        records = db.manuscripts.find({"idx_name":lower_name}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
                     elif (postData['shelfmark']):
-                        records = db.manuscripts.find({"shelfmark":postData['shelfmark']}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
+                        lower_shelf = postData['shelfmark'].lower()
+                        records = db.manuscripts.find({"idx_shelfmark":lower_shelf}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
             except:
                 # return all
                 records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
@@ -204,6 +214,9 @@ def itemAdd():
 @cross_origin(headers=['Content-Type'])
 def itemUpdate(m_id):
     postData = request.get_json(force=True)
+    # add in the lowercase name and shelfmark for indexing
+    postData['idx_name'] = postData['name'].lower()
+    postData['idx_shelfmark'] = postData['shelfmark'].lower()
 
     manuscript = db.manuscripts.find_and_modify(query={'mid':m_id}, update={"$set": postData}, upsert=True, full_response=True)
 
