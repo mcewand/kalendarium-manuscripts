@@ -110,6 +110,7 @@ class Manuscript(object):
 #    return render_template('404.html'), 404 #@todo need to add
 
 @app.route("/")
+@cross_origin()
 def index():
     if (db):
         records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
