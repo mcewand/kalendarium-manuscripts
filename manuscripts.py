@@ -61,7 +61,10 @@ dictFields = {
     'is_integral':None,
     'grade_black':None,
     'grade_blue':None,
+    'grade_green':None,
+    'grade_pink':None,
     'grade_red':None,
+    'grade_purple':None,
     'grade_gold':None,
     'shading':None,
     'folio_start_num':None,
@@ -110,6 +113,7 @@ class Manuscript(object):
 #    return render_template('404.html'), 404 #@todo need to add
 
 @app.route("/")
+@cross_origin()
 def index():
     if (db):
         records = db.manuscripts.find({}, {"_id":0, "mid":1, "name":1, "shelfmark":1})
